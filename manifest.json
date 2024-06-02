@@ -1,0 +1,11 @@
+{
+	"id": "aissist",
+	"name": "AIssist",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "A Generative AI-based assistant for Obsidian.",
+	"author": "Francesco Vass",
+	"authorUrl": "https://",
+	"fundingUrl": "https://",
+	"isDesktopOnly": false
+}

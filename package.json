@@ -1,0 +1,23 @@
+{
+  "name": "aissist",
+  "version": "1.0.0",
+  "description": "A Generative AI-based assistant for Obsidian.",
+  "main": "main.ts",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.19.9",
+    "eslint": "^8.55.0",
+    "obsidian": "^1.4.11",
+    "typescript": "^5.3.3"
+  }
+}
