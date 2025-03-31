@@ -14,7 +14,7 @@ export interface AIssistSettings {
 
 export const DEFAULT_SETTINGS: AIssistSettings = {
     openAIAPIKey: "Your key",
-    openAIChatModel: "gpt-4-turbo",
+    openAIChatModel: "gpt-4o",
     openAIMaxTokens: 1000,
     openAIChatFrequencyPenalty: 0,
     openAIChatN: 1,
