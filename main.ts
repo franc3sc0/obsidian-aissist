@@ -35,7 +35,7 @@ interface OpenAIChatCompletion {
 	};
 }
 
-const OPENAI_CHAT_API_URL = "https://api.openai.com/v1/chat/completions";
+const OPENAI_RESPONSE_API_URL = "https://api.openai.com/v1/responses";
 const OPEN_AI_CHAT_SYSTEM_MESSAGE = "You are a helpful assistant";
 const MARKER_START = "%% AIssist";
 const MARKER_END = "%%";
@@ -299,36 +299,24 @@ export default class AIssist extends Plugin {
 		}
 	}
 
-	/* requestOpenAIChatCompletion
-	*/
-	async requestOpenAIChatCompletion(requestParams: OpenAIChatRequestParams, conversation: OpenAIChatMessage[]): Promise<OpenAIChatCompletion> {
-		console.debug("[AIssist] Function: requestOpenAIChatCompletion");
+	/* requestOpenAIResponse */
+	async requestOpenAIResponse(requestParams: OpenAIChatRequestParams, input: string, previousResponseId: string | null): Promise<any> {
+		console.debug("[AIssist] Function: requestOpenAIResponse");
 
-		// Check if system_message is set and add a new message accordingly
-		if (requestParams.system_message) {
-			const systemMessage: OpenAIChatMessage = {
-				role: "system",
-				content: requestParams.system_message,
-			};
+		const requestData: any = {
+			model: requestParams.model,
+			input: input,
+			store: true,
+		};
 
-			// Insert the new element at the beginning of the array
-			conversation.unshift(systemMessage);
-		}
-
-		const requestData = {
-			"model": requestParams.model,
-			"frequency_penalty": requestParams.frequency_penalty,
-			"max_tokens": requestParams.max_tokens,
-			"n": requestParams.n,
-			"presence_penalty": requestParams.presence_penalty,
-			"temperature": requestParams.temperature,
-			"top_p": requestParams.top_p,
-			"messages": conversation
+		// Include previous_response_id if available to maintain conversation state
+		if (previousResponseId) {
+			requestData.previous_response_id = previousResponseId;
 		}
 
 		try {
-			console.log("[AIssist] Requesting OpenAI Chat Completion with data: ", requestData);
-			const rawResponse = await fetch(OPENAI_CHAT_API_URL, {
+			console.log("[AIssist] Requesting OpenAI Response with data: ", requestData);
+			const rawResponse = await fetch(OPENAI_RESPONSE_API_URL, {
 				method: `POST`,
 				headers: {
 					"Authorization": `Bearer ${this.settings.openAIAPIKey}`,
@@ -341,7 +329,7 @@ export default class AIssist extends Plugin {
 				throw new Error(`[AIssist] HTTP error with status: ${rawResponse.status}`);
 			}
 
-			const jsonResponse: OpenAIChatCompletion = await rawResponse.json();
+			const jsonResponse = await rawResponse.json();
 			return jsonResponse;
 
 		} catch (error) {
@@ -350,86 +338,32 @@ export default class AIssist extends Plugin {
 		}
 	}
 
-	/* Variation of requestOpenAIChatCompletion that is supposed to work with "stream" set to true. It is untested.
-	*/
-	/*
-	async requestOpenAIChatCompletion(conversation: OpenAIChatMessage[]): Promise<OpenAIChatCompletion[]> {
-		console.debug("[AIssist] Function: requestOpenAIChatCompletion");
-	
-		let data = {
-			model: this.settings.openAIChatModel,
-			messages: conversation,
-			stream: true // Enable stream mode
-		};
-	
-		const OPENAI_CHAT_API_URL = 'api endpoint here'; // Replace with actual API endpoint
-	
-		try {
-			const rawResponse = await fetch(OPENAI_CHAT_API_URL, {
-				method: `POST`,
-				headers: {
-					"Authorization": `Bearer ${this.settings.openAIAPIKey}`,
-					"Content-Type": "application/json"
-				},
-				body: JSON.stringify(data)
-			});
-	
-			if (!rawResponse.body) {
-				throw new Error('ReadableStream not available on the response.');
-			}
-	
-			const reader = rawResponse.body.getReader();
-			const streamCompletions: OpenAIChatCompletion[] = [];
-	
-			// This function will be called with each chunk of data received
-			const processChunk = async ({ done, value }: ReadableStreamDefaultReadResult<Uint8Array>): Promise<void> => {
-				if (done) {
-					console.debug("[AIssist] Stream complete");
-					return;
-				}
-	
-				// Convert the uint8 array to a string. This assumes the text is UTF-8 encoded
-				const text = new TextDecoder().decode(value);
-				// Parse the chunk and push to the completions array
-				try {
-				  const jsonResponse: OpenAIChatCompletion = JSON.parse(text);
-				  streamCompletions.push(jsonResponse);
-				} catch (error) {
-				  console.error("[AIssist] JSON parse error: ", error);
-				}
-				// Read the next chunk (if available)
-				return reader.read().then(processChunk);
-			};
-	
-			await reader.read().then(processChunk);
-	
-			return streamCompletions;
-	
-		} catch (error) {
-			console.error("[AIssist] Request failed:", error);
-			throw error;
-		}
-	}
-	*/
-
-	/* insertResponse
-	*/
-	async insertResponse(editor: Editor, cursorAfterPrompt: CodeMirror.Position, requestParams: OpenAIChatRequestParams, conversation: OpenAIChatMessage[]): Promise<void> {
+	/* insertResponse */
+	async insertResponse(editor: Editor, cursorAfterPrompt: CodeMirror.Position, requestParams: OpenAIChatRequestParams, input: string, previousResponseId: string | null): Promise<void> {
 		console.debug("[AIssist] Function: insertResponse");
 
 		try {
-			const responseJson = await this.requestOpenAIChatCompletion(requestParams, conversation);
+			const responseJson = await this.requestOpenAIResponse(requestParams, input, previousResponseId);
 
-			if (responseJson.choices && responseJson.choices.length > 0 && responseJson.choices[0].message) {
-				let replyContent: string = responseJson.choices[0].message.content;
+				// Log the Response ID for debugging
+				//console.log(`[AIssist] Received Response ID: ${responseJson.id}`);
 
+			// Extract the assistant's message content
+			const replyContent = responseJson.output
+				.filter((output: any) => output.type === "message" && output.role === "assistant")
+				.map((output: any) => output.content
+					.filter((content: any) => content.type === "output_text")
+					.map((content: any) => content.text)
+					.join("\n"))
+				.join("\n");
+
+			if (replyContent) {
 				// Prepend response with AIssist delimiter and Chat Completions role
-				let prefix = `\n${MARKER_START}; role:assistant; ${MARKER_END} `;
-				replyContent = prefix + replyContent;
+				const formattedReply = `\n${MARKER_START}; role:assistant; ${MARKER_END} ${replyContent}`;
 
 				// Insert the AI response
-				editor.replaceRange(replyContent, editor.getCursor());
-				let lines = replyContent.split('\n').length;
+				editor.replaceRange(formattedReply, editor.getCursor());
+				const lines = formattedReply.split('\n').length;
 				editor.setCursor({ line: cursorAfterPrompt.line + lines, ch: 0 });
 
 				// Get active note's Frontmatter
@@ -440,23 +374,28 @@ export default class AIssist extends Plugin {
 
 				const noteFrontmatter = this.app.metadataCache.getFileCache(noteFile)?.frontmatter;
 
-				// Update Frontmatter properties with new token counts
-				const updateProperty = (prop: string, tokens: number) => {
-					let value = noteFrontmatter && noteFrontmatter[prop] ? noteFrontmatter[prop] + tokens : tokens;
-					this.insertFrontmatterProperty(editor, prop, value);
+				// Add values to selected Frontmatter properties
+				const addToProperty = (prop: string, value: number) => {
+					const currentValue = noteFrontmatter?.[prop] || 0;
+					this.insertFrontmatterProperty(editor, prop, currentValue + value);
 				};
 
-				// Completion, Prompt and Total tokens need to be updated
-				updateProperty('aissist_openai_chat_completion_tokens', responseJson.usage.completion_tokens);
-				updateProperty('aissist_openai_chat_prompt_tokens', responseJson.usage.prompt_tokens);
-				updateProperty('aissist_openai_chat_total_tokens', responseJson.usage.total_tokens);
+				// Add token usage values to the existing ones in Frontmatter
+				addToProperty('aissist_openai_response_input_tokens', responseJson.usage.input_tokens);
+				addToProperty('aissist_openai_response_output_tokens', responseJson.usage.output_tokens);
+				addToProperty('aissist_openai_response_total_tokens', responseJson.usage.total_tokens);
+
+				// Update `previousResponseId` in the note's Frontmatter
+				this.insertFrontmatterProperty(editor, 'aissist_openai_previous_response_id', responseJson.id);
+			} else {
+				console.warn("[AIssist] No assistant message found in the response.");
+				new Notice("[AIssist] No assistant message found in the response.");
 			}
 		} catch (error) {
-			console.error("[AIssist] Inserting Chat Completion failed with error:", error);
-			new Notice("[AIssist] Error inserting chat completion.");
+			console.error("[AIssist] Inserting Response failed with error:", error);
+			new Notice("[AIssist] Error inserting response.");
 		}
 	}
-
 
 	/* insertTimestamp
 	*/
@@ -540,7 +479,7 @@ export default class AIssist extends Plugin {
 				const { cursorPos, message } = this.parsePrompt(editor);
 
 				// Query OpenAI and insert chat completion
-				await this.insertResponse(editor, cursorPos, requestParams, message);
+				await this.insertResponse(editor, cursorPos, requestParams, message[0].content, null);
 			}
 		})
 
@@ -551,18 +490,22 @@ export default class AIssist extends Plugin {
 			name: "Chat",
 			icon: "message-circle",
 			editorCallback: async (editor: Editor) => {
-
 				// Pull all request parameters and create/update frontmatter, as relevant
-				const requestParams = this.prepareOpenAIChatCompletionRequest(editor); // >> any problem with prompt because of frontmatter ?
+				const requestParams = this.prepareOpenAIChatCompletionRequest(editor);
 
 				// Parse prompt
 				const { cursorPos, message } = this.parsePrompt(editor);
 
-				// parseMessages
-				const messages = this.parseMessages(editor.getValue(), this.settings.maxPreviousMessages);
+				// Retrieve the previous response ID from the note's Frontmatter
+				const noteFile = this.app.workspace.getActiveFile();
+				if (!noteFile) {
+					throw new Error("[AIssist] No active note");
+				}
+				const noteFrontmatter = this.app.metadataCache.getFileCache(noteFile)?.frontmatter;
+				const previousResponseId = noteFrontmatter?.aissist_openai_previous_response_id || null;
 
 				// Query OpenAI and insert chat completion
-				await this.insertResponse(editor, cursorPos, requestParams, messages);
+				await this.insertResponse(editor, cursorPos, requestParams, message[0].content, previousResponseId);
 			}
 		})
 

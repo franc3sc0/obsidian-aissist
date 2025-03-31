@@ -1,6 +1,3 @@
-
-
-
 # AIssist
 
 A Generative AI-based assistant for Obsidian.
@@ -64,5 +61,10 @@ Queries the LLM and returns its answer. In providing the answer, the LLM **consi
     * "index.js" with "main.ts"
 5. Run `npm install --save-dev @typescript-eslint/parser @typescript-eslint/eslint-plugin eslint esbuild typescript builtin-modules obsidian` to install the required packages 
 6. Run `npm run dev` to start compilation in watch mode.
+
+### Debugging tips
+* Keep the Developer Console open (View > Toggle Developer Tools or Cmd/Ctrl+Shift+I)
+* Add `console.debug()` statements in your code to track execution
+* Check for errors in the console
 
 ## FAQ
