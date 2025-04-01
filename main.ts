@@ -3,12 +3,16 @@ import { AIssistSettings, DEFAULT_SETTINGS } from "./settings";
 
 interface OpenAIResponseRequest {
 	model: string; // ID of the model to use (e.g., "gpt-4o").
-	input?: string; // The input text for the OpenAI response request.
+	input?: string; // The input text for the OpenAI response request. It is actually required, but we are declaring it optional because we are adding it after creating the object. Not clean, but works.
 	max_output_tokens?: number; // The maximum number of tokens to generate in the response reply. 
 	temperature?: number; // What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
 	top_p?: number; // An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
 	store?: boolean; // Whether to store the response for future reference (default: true).
 	previous_response_id?: string; // ID of the previous response to maintain conversation context.
+	tools?: Array<{
+        type: string; // Type of the tool (e.g., "file_search").
+        vector_store_ids: string[]; // Array of vector store IDs.
+    }>;
 }
 
 interface OpenAIChatMessage {
@@ -207,6 +211,7 @@ export default class AIssist extends Plugin {
 			let temperature; 
 			let top_p;
 			let store;
+			let tools;
 
 			// Parameters that appear and are changeable in Frontmatter:
 
@@ -249,12 +254,30 @@ export default class AIssist extends Plugin {
 				store = noteFrontmatter.aissist_openai_response_store;
 			} 
 
+			// vector_stores
+			if (noteFrontmatter?.aissist_openai_vector_stores !== undefined) {
+				const vectorStoreIds = noteFrontmatter.aissist_openai_vector_stores;
+	
+				// Ensure it's an array
+				if (Array.isArray(vectorStoreIds)) {
+					tools = [
+						{
+							type: "file_search",
+							vector_store_ids: vectorStoreIds,
+						},
+					];
+				} else {
+					console.warn("[AIssist] `aissist_openai_vector_stores` is not a valid array.");
+				}
+			}
+
 			const OpenAIResponseRequest: OpenAIResponseRequest = {
 				model: model,
 				max_output_tokens: max_output_tokens, 
 				...(temperature !== undefined && { temperature }), // Add temperature if defined in Frontmatter
 				...(top_p !== undefined && { top_p }), // Add top_p if defined in Frontmatter
-				...(store !== undefined && { store }) // Add store if defined in Frontmatter
+				...(store !== undefined && { store }), // Add store if defined in Frontmatter
+				...(tools !== undefined && { tools }), // Add tools, if related parameters are defined in Frontmatter
 			};
 
 			return OpenAIResponseRequest;
