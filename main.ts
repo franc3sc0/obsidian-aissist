@@ -188,9 +188,9 @@ export default class AIssist extends Plugin {
 		return messages;
 	}
 
-	/* prepareOpenAIChatCompletionRequest
+	/* prepareOpenAIResponseRequest
 	*/
-	prepareOpenAIChatCompletionRequest(editor: Editor): OpenAIResponseRequest {
+	prepareOpenAIResponseRequest(editor: Editor): OpenAIResponseRequest {
 
 		try {
 			// Get file Frontmatter from workspace
@@ -204,7 +204,7 @@ export default class AIssist extends Plugin {
 
 			let model;
 			let max_output_tokens; 
-			let temperature;
+			let temperature; 
 			let top_p;
 			let store;
 
@@ -232,19 +232,14 @@ export default class AIssist extends Plugin {
 				this.insertFrontmatterProperty(editor, "aissist_openai_max_output_tokens", max_output_tokens); 
 			}
 
+			// Parameters that do not appear by default but are settable in Frontmatter:
+
 			// temperature
 			if (noteFrontmatter?.aissist_openai_response_temperature !== undefined) {
 				temperature = noteFrontmatter.aissist_openai_response_temperature;
-			} else if (this.settings.openAIResponseTemperature !== undefined) {
-				temperature = this.settings.openAIResponseTemperature;
-				this.insertFrontmatterProperty(editor, "aissist_openai_response_temperature", temperature);
-			} else {
-				temperature = DEFAULT_SETTINGS.openAIResponseTemperature;
-				this.insertFrontmatterProperty(editor, "aissist_openai_response_temperature", temperature);
-			}
+				} 
 
-				// Parameters that do not appear by default but are settable in Frontmatter:
-
+			// top_p
 			if (noteFrontmatter?.aissist_openai_response_top_p !== undefined) {
 				top_p = noteFrontmatter.aissist_openai_response_top_p;
 			} 
@@ -257,15 +252,15 @@ export default class AIssist extends Plugin {
 			const OpenAIResponseRequest: OpenAIResponseRequest = {
 				model: model,
 				max_output_tokens: max_output_tokens, 
-				temperature: temperature,
-				...(top_p !== undefined && { top_p }), // Add top_p if defined
-				...(store !== undefined && { store }) // Add store if defined
+				...(temperature !== undefined && { temperature }), // Add temperature if defined in Frontmatter
+				...(top_p !== undefined && { top_p }), // Add top_p if defined in Frontmatter
+				...(store !== undefined && { store }) // Add store if defined in Frontmatter
 			};
 
 			return OpenAIResponseRequest;
 
 		} catch (err) {
-			throw new Error("[AIssist] Error preparing OpenAI Chat Request object");
+			throw new Error("[AIssist] Error preparing OpenAI Response request object");
 		}
 	}
 
@@ -326,7 +321,7 @@ export default class AIssist extends Plugin {
 				.join("\n");
 
 			if (replyContent) {
-				// Prepend response with AIssist delimiter and Chat Completions role
+				// Prepend response with AIssist delimiter and user role
 				const formattedReply = `\n${MARKER_START}; role:assistant; ${MARKER_END} ${replyContent}`;
 
 				// Insert the AI response
@@ -441,12 +436,12 @@ export default class AIssist extends Plugin {
 			editorCallback: async (editor: Editor) => {
 
 				// Pull all request parameters and create/update frontmatter, as relevant
-				const requestParams = this.prepareOpenAIChatCompletionRequest(editor); // >> any problem with prompt because of frontmatter ?
+				const requestParams = this.prepareOpenAIResponseRequest(editor); // >> any problem with prompt because of frontmatter ?
 
 				// Parse prompt
 				const { cursorPos, message } = this.parsePrompt(editor);
 
-				// Query OpenAI and insert chat completion
+				// Query OpenAI and insert response
 				await this.insertResponse(editor, cursorPos, requestParams, message[0].content, null);
 			}
 		})
@@ -459,7 +454,7 @@ export default class AIssist extends Plugin {
 			icon: "message-circle",
 			editorCallback: async (editor: Editor) => {
 				// Pull all request parameters and create/update frontmatter, as relevant
-				const requestParams = this.prepareOpenAIChatCompletionRequest(editor);
+				const requestParams = this.prepareOpenAIResponseRequest(editor);
 
 				// Parse prompt
 				const { cursorPos, message } = this.parsePrompt(editor);
@@ -472,7 +467,7 @@ export default class AIssist extends Plugin {
 				const noteFrontmatter = this.app.metadataCache.getFileCache(noteFile)?.frontmatter;
 				const previousResponseId = noteFrontmatter?.aissist_openai_previous_response_id || null;
 
-				// Query OpenAI and insert chat completion
+				// Query OpenAI and insert response
 				await this.insertResponse(editor, cursorPos, requestParams, message[0].content, previousResponseId);
 			}
 		})
@@ -510,7 +505,7 @@ class AIssistSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName("OpenAI Chat API model")
+			.setName("OpenAI model")
 			.setDesc("See [model endpoint compatibility](https://platform.openai.com/docs/models/model-endpoint-compatibility) for available models")
 			.addText(text => text
 				.setValue(this.plugin.settings.openAIResponseModel)
@@ -520,8 +515,8 @@ class AIssistSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName("Maximum number of tokens to generate in the chat completion")
-			.setDesc("Response will be truncated if it exceeds this value. Max. allowed value is 4096.")
+			.setName("Maximum number of putput tokens to generate in the response")
+			.setDesc("Response will be truncated if it exceeds this value")
 			.addText(text => text
 				.setPlaceholder(DEFAULT_SETTINGS.openAIMaxOutputTokens.toString())
 				.setValue(this.plugin.settings.openAIMaxOutputTokens.toString())
@@ -542,7 +537,7 @@ class AIssistSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName("Maximum number of previous messages passed to chat")
+			.setName("Maximum number of previous messages passed to query")
 			.setDesc("Excess messages will be ignored.")
 			.addText(text => text
 				.setPlaceholder(DEFAULT_SETTINGS.maxPreviousMessages.toString())
@@ -556,9 +551,9 @@ class AIssistSettingTab extends PluginSettingTab {
 			.setName("Stream responses")
 			.setDesc("If set, partial message deltas will be sent, like in ChatGPT.")
 			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.openAIStreamChat)
+				.setValue(this.plugin.settings.openAIStreamResponse)
 				.onChange(async (value) => {
-					this.plugin.settings.openAIStreamChat = value;
+					this.plugin.settings.openAIStreamResponse = value;
 					await this.plugin.saveSettings();
 				}));
 	}
