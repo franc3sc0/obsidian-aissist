@@ -3,13 +3,9 @@ import { AIssistSettings, DEFAULT_SETTINGS } from "./settings";
 
 interface OpenAIChatRequestParams {
 	model: string; // ID of the model to use. 
-	frequency_penalty: number | null; // Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim.
 	max_tokens: number | null; // The maximum number of tokens to generate in the chat completion.
-	n: number | null; // How many chat completion choices to generate for each input message.
-	presence_penalty: number | null; // Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics.
 	temperature: number | null; // What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
 	top_p: number | null; // An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
-	system_message: string;
 }
 
 interface OpenAIChatMessage {
@@ -36,7 +32,6 @@ interface OpenAIChatCompletion {
 }
 
 const OPENAI_RESPONSE_API_URL = "https://api.openai.com/v1/responses";
-const OPEN_AI_CHAT_SYSTEM_MESSAGE = "You are a helpful assistant";
 const MARKER_START = "%% AIssist";
 const MARKER_END = "%%";
 const USER_EMOJI = ":technologist:";
@@ -203,13 +198,9 @@ export default class AIssist extends Plugin {
 			const noteFrontmatter = this.app.metadataCache.getFileCache(noteFile)?.frontmatter;
 
 			let model;
-			let frequency_penalty;
 			let max_tokens;
-			let n;
-			let presence_penalty;
 			let temperature;
 			let top_p;
-			let system_message;
 
 			// Parameters that appear and are changeable in Frontmatter:
 
@@ -246,34 +237,7 @@ export default class AIssist extends Plugin {
 				this.insertFrontmatterProperty(editor, "aissist_openai_chat_temperature", temperature);
 			}
 
-			// system_message
-			if (noteFrontmatter?.aissist_openai_chat_system_message !== undefined) {
-				system_message = noteFrontmatter.aissist_openai_chat_system_message;
-			} else {
-				system_message = OPEN_AI_CHAT_SYSTEM_MESSAGE;
-				this.insertFrontmatterProperty(editor, "aissist_openai_chat_system_message", system_message);
-			}
-
-			// Parameters that do not appear by default but are settable in Frontmatter:
-
-			if (noteFrontmatter?.aissist_openai_chat_frequency_penalty !== undefined) {
-				frequency_penalty = noteFrontmatter.aissist_openai_chat_frequency_penalty;
-			} else {
-				frequency_penalty = DEFAULT_SETTINGS.openAIChatFrequencyPenalty;
-			}
-
-			if (noteFrontmatter?.aissist_openai_chat_n !== undefined) {
-				n = noteFrontmatter.aissist_openai_chat_n;
-			} else {
-				n = DEFAULT_SETTINGS.openAIChatN;
-			}
-
-			if (noteFrontmatter?.aissist_openai_chat_presence_penalty !== undefined) {
-				presence_penalty = noteFrontmatter.aissist_openai_chat_presence_penalty;
-			} else {
-				presence_penalty = DEFAULT_SETTINGS.openAIChatPresencePenalty;
-			}
-
+				// Parameters that do not appear by default but are settable in Frontmatter:
 
 			if (noteFrontmatter?.aissist_openai_chat_top_p !== undefined) {
 				top_p = noteFrontmatter.aissist_openai_chat_top_p;
@@ -283,13 +247,9 @@ export default class AIssist extends Plugin {
 
 			const OpenAIChatRequestParams = {
 				"model": model,
-				"frequency_penalty": frequency_penalty,
 				"max_tokens": max_tokens,
-				"n": n,
-				"presence_penalty": presence_penalty,
 				"temperature": temperature,
 				"top_p": top_p,
-				"system_message": system_message,
 			};
 
 			return OpenAIChatRequestParams;
@@ -299,7 +259,8 @@ export default class AIssist extends Plugin {
 		}
 	}
 
-	/* requestOpenAIResponse */
+	/* requestOpenAIResponse 
+	*/
 	async requestOpenAIResponse(requestParams: OpenAIChatRequestParams, input: string, previousResponseId: string | null): Promise<any> {
 		console.debug("[AIssist] Function: requestOpenAIResponse");
 
@@ -338,7 +299,8 @@ export default class AIssist extends Plugin {
 		}
 	}
 
-	/* insertResponse */
+	/* insertResponse 
+	*/
 	async insertResponse(editor: Editor, cursorAfterPrompt: CodeMirror.Position, requestParams: OpenAIChatRequestParams, input: string, previousResponseId: string | null): Promise<void> {
 		console.debug("[AIssist] Function: insertResponse");
 
