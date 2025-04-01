@@ -345,9 +345,6 @@ export default class AIssist extends Plugin {
 		try {
 			const responseJson = await this.requestOpenAIResponse(requestParams, input, previousResponseId);
 
-				// Log the Response ID for debugging
-				console.log(`[AIssist] Received Response ID: ${responseJson.id}`);
-
 			// Extract the assistant's message content
 			const replyContent = responseJson.output
 				.filter((output: any) => output.type === "message" && output.role === "assistant")
