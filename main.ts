@@ -1,11 +1,14 @@
 import { Plugin, Editor, Notice, PluginSettingTab, App, Setting } from "obsidian";
 import { AIssistSettings, DEFAULT_SETTINGS } from "./settings";
 
-interface OpenAIChatRequestParams {
-	model: string; // ID of the model to use. 
-	max_tokens: number | null; // The maximum number of tokens to generate in the chat completion.
-	temperature: number | null; // What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
-	top_p: number | null; // An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
+interface OpenAIResponseRequest {
+	model: string; // ID of the model to use (e.g., "gpt-4o").
+	input?: string; // The input text for the OpenAI response request.
+	max_output_tokens?: number; // The maximum number of tokens to generate in the response reply. 
+	temperature?: number; // What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
+	top_p?: number; // An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
+	store?: boolean; // Whether to store the response for future reference (default: true).
+	previous_response_id?: string; // ID of the previous response to maintain conversation context.
 }
 
 interface OpenAIChatMessage {
@@ -185,7 +188,9 @@ export default class AIssist extends Plugin {
 		return messages;
 	}
 
-	prepareOpenAIChatCompletionRequest(editor: Editor): OpenAIChatRequestParams {
+	/* prepareOpenAIChatCompletionRequest
+	*/
+	prepareOpenAIChatCompletionRequest(editor: Editor): OpenAIResponseRequest {
 
 		try {
 			// Get file Frontmatter from workspace
@@ -198,61 +203,66 @@ export default class AIssist extends Plugin {
 			const noteFrontmatter = this.app.metadataCache.getFileCache(noteFile)?.frontmatter;
 
 			let model;
-			let max_tokens;
+			let max_output_tokens; 
 			let temperature;
 			let top_p;
+			let store;
 
 			// Parameters that appear and are changeable in Frontmatter:
 
 			// model
-			if (noteFrontmatter?.aissist_openai_chat_model !== undefined) { // If defined in Frontmatter...
-				model = noteFrontmatter.aissist_openai_chat_model; // ... use its value.
-			} else if (this.settings.openAIChatModel !== undefined) { // If not defined in Frontmatter but defined in Settings...
-				model = this.settings.openAIChatModel; // ... use its value,
-				this.insertFrontmatterProperty(editor, "aissist_openai_chat_model", model); // and write it to Frontmatter
+			if (noteFrontmatter?.aissist_openai_response_model !== undefined) { // If defined in Frontmatter...
+				model = noteFrontmatter.aissist_openai_response_model; // ... use its value.
+			} else if (this.settings.openAIResponseModel !== undefined) { // If not defined in Frontmatter but defined in Settings...
+				model = this.settings.openAIResponseModel; // ... use its value,
+				this.insertFrontmatterProperty(editor, "aissist_openai_response_model", model); // and write it to Frontmatter
 			} else {
-				model = DEFAULT_SETTINGS.openAIChatModel; // Otherwise fall back to default value, 
-				this.insertFrontmatterProperty(editor, "aissist_openai_chat_model", model); // and write it to Frontmatter
+				model = DEFAULT_SETTINGS.openAIResponseModel; // Otherwise fall back to default value, 
+				this.insertFrontmatterProperty(editor, "aissist_openai_response_model", model); // and write it to Frontmatter
 			}
 
-			// max_tokens
-			if (noteFrontmatter?.aissist_openai_chat_max_tokens !== undefined) {
-				max_tokens = noteFrontmatter.aissist_openai_chat_max_tokens;
-			} else if (this.settings.openAIMaxTokens !== undefined) {
-				max_tokens = this.settings.openAIMaxTokens;
-				this.insertFrontmatterProperty(editor, "aissist_openai_chat_max_tokens", max_tokens);
+			// max_output_tokens
+			if (noteFrontmatter?.aissist_openai_max_output_tokens !== undefined) { 
+				max_output_tokens = noteFrontmatter.aissist_openai_max_output_tokens; 
+			} else if (this.settings.openAIMaxOutputTokens !== undefined) { 
+				max_output_tokens = this.settings.openAIMaxOutputTokens; 
+				this.insertFrontmatterProperty(editor, "aissist_openai_max_output_tokens", max_output_tokens); 
 			} else {
-				max_tokens = DEFAULT_SETTINGS.openAIMaxTokens;
-				this.insertFrontmatterProperty(editor, "aissist_openai_chat_max_tokens", max_tokens);
+				max_output_tokens = DEFAULT_SETTINGS.openAIMaxOutputTokens; 
+				this.insertFrontmatterProperty(editor, "aissist_openai_max_output_tokens", max_output_tokens); 
 			}
 
 			// temperature
-			if (noteFrontmatter?.aissist_openai_chat_temperature !== undefined) {
-				temperature = noteFrontmatter.aissist_openai_chat_temperature;
-			} else if (this.settings.openAIChatTemperature !== undefined) {
-				temperature = this.settings.openAIChatTemperature;
-				this.insertFrontmatterProperty(editor, "aissist_openai_chat_temperature", temperature);
+			if (noteFrontmatter?.aissist_openai_response_temperature !== undefined) {
+				temperature = noteFrontmatter.aissist_openai_response_temperature;
+			} else if (this.settings.openAIResponseTemperature !== undefined) {
+				temperature = this.settings.openAIResponseTemperature;
+				this.insertFrontmatterProperty(editor, "aissist_openai_response_temperature", temperature);
 			} else {
-				temperature = DEFAULT_SETTINGS.openAIChatTemperature;
-				this.insertFrontmatterProperty(editor, "aissist_openai_chat_temperature", temperature);
+				temperature = DEFAULT_SETTINGS.openAIResponseTemperature;
+				this.insertFrontmatterProperty(editor, "aissist_openai_response_temperature", temperature);
 			}
 
 				// Parameters that do not appear by default but are settable in Frontmatter:
 
-			if (noteFrontmatter?.aissist_openai_chat_top_p !== undefined) {
-				top_p = noteFrontmatter.aissist_openai_chat_top_p;
-			} else {
-				top_p = DEFAULT_SETTINGS.openAIChatTopP;
-			}
+			if (noteFrontmatter?.aissist_openai_response_top_p !== undefined) {
+				top_p = noteFrontmatter.aissist_openai_response_top_p;
+			} 
 
-			const OpenAIChatRequestParams = {
-				"model": model,
-				"max_tokens": max_tokens,
-				"temperature": temperature,
-				"top_p": top_p,
+			// store
+			if (noteFrontmatter?.aissist_openai_response_store !== undefined) {
+				store = noteFrontmatter.aissist_openai_response_store;
+			} 
+
+			const OpenAIResponseRequest: OpenAIResponseRequest = {
+				model: model,
+				max_output_tokens: max_output_tokens, 
+				temperature: temperature,
+				...(top_p !== undefined && { top_p }), // Add top_p if defined
+				...(store !== undefined && { store }) // Add store if defined
 			};
 
-			return OpenAIChatRequestParams;
+			return OpenAIResponseRequest;
 
 		} catch (err) {
 			throw new Error("[AIssist] Error preparing OpenAI Chat Request object");
@@ -261,13 +271,12 @@ export default class AIssist extends Plugin {
 
 	/* requestOpenAIResponse 
 	*/
-	async requestOpenAIResponse(requestParams: OpenAIChatRequestParams, input: string, previousResponseId: string | null): Promise<any> {
+	async requestOpenAIResponse(requestParams: OpenAIResponseRequest, input: string, previousResponseId: string | null): Promise<any> {
 		console.debug("[AIssist] Function: requestOpenAIResponse");
 
-		const requestData: any = {
-			model: requestParams.model,
+		const requestData: OpenAIResponseRequest = {
+			...requestParams,
 			input: input,
-			store: true,
 		};
 
 		// Include previous_response_id if available to maintain conversation state
@@ -301,7 +310,7 @@ export default class AIssist extends Plugin {
 
 	/* insertResponse 
 	*/
-	async insertResponse(editor: Editor, cursorAfterPrompt: CodeMirror.Position, requestParams: OpenAIChatRequestParams, input: string, previousResponseId: string | null): Promise<void> {
+	async insertResponse(editor: Editor, cursorAfterPrompt: CodeMirror.Position, requestParams: OpenAIResponseRequest, input: string, previousResponseId: string | null): Promise<void> {
 		console.debug("[AIssist] Function: insertResponse");
 
 		try {
@@ -504,9 +513,9 @@ class AIssistSettingTab extends PluginSettingTab {
 			.setName("OpenAI Chat API model")
 			.setDesc("See [model endpoint compatibility](https://platform.openai.com/docs/models/model-endpoint-compatibility) for available models")
 			.addText(text => text
-				.setValue(this.plugin.settings.openAIChatModel)
+				.setValue(this.plugin.settings.openAIResponseModel)
 				.onChange(async (value) => {
-					this.plugin.settings.openAIChatModel = value;
+					this.plugin.settings.openAIResponseModel = value;
 					await this.plugin.saveSettings();
 				}));
 
@@ -514,10 +523,10 @@ class AIssistSettingTab extends PluginSettingTab {
 			.setName("Maximum number of tokens to generate in the chat completion")
 			.setDesc("Response will be truncated if it exceeds this value. Max. allowed value is 4096.")
 			.addText(text => text
-				.setPlaceholder(DEFAULT_SETTINGS.openAIMaxTokens.toString())
-				.setValue(this.plugin.settings.openAIMaxTokens.toString())
+				.setPlaceholder(DEFAULT_SETTINGS.openAIMaxOutputTokens.toString())
+				.setValue(this.plugin.settings.openAIMaxOutputTokens.toString())
 				.onChange(async (value) => {
-					this.plugin.settings.openAIMaxTokens = parseInt(value);
+					this.plugin.settings.openAIMaxOutputTokens = parseInt(value);
 					await this.plugin.saveSettings();
 				}));
 

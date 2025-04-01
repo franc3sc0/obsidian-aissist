@@ -39,6 +39,11 @@ Queries the LLM and returns its answer. The LLM **does not consider the contents
 ### "Chat" command
 Queries the LLM and returns its answer. In providing the answer, the LLM **considers the contents of the Note as context**, similar to ChatGPT's behavior.
 
+### Response API parameters
+The following Response API request parameters can be set in the note's Frontmatter:
+* `store` (boolean, [reference](https://platform.openai.com/docs/api-reference/responses/create#responses-create-store)) - use property `aissist_openai_response_store`.
+* `top_p`(number, [reference](https://platform.openai.com/docs/api-reference/chat/create#chat-create-top_p)) - use property `aissist_openai_response_top_p`.
+
 ## Upcoming improvements
 * Add Status bar items
 * Add OpenAI Stop command
