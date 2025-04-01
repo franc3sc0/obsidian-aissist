@@ -50,7 +50,7 @@ const COMMENT_BLOCK_REGEX = /^> \[!note\]\+ Comment\n(> .*?\n)+/gm;
 * PLUGIN FUNCTIONALITY
 */
 export default class AIssist extends Plugin {
-	settings: AIssistSettings;
+	settings: AIssistSettings = DEFAULT_SETTINGS; // Initialize settings with default values
 
 	/* parsePrompt
 	*/
@@ -346,7 +346,7 @@ export default class AIssist extends Plugin {
 			const responseJson = await this.requestOpenAIResponse(requestParams, input, previousResponseId);
 
 				// Log the Response ID for debugging
-				//console.log(`[AIssist] Received Response ID: ${responseJson.id}`);
+				console.log(`[AIssist] Received Response ID: ${responseJson.id}`);
 
 			// Extract the assistant's message content
 			const replyContent = responseJson.output
@@ -404,10 +404,10 @@ export default class AIssist extends Plugin {
 
 		const date = new Date();
 		const year = date.getFullYear();
-		const month = date.getMonth().toString().padStart(2, '0');
-		const day = date.getDate().toString().padStart(2, '0');
-		const hour = date.getHours().toString().padStart(2, '0');
-		const minute = date.getMinutes().toString().padStart(2, '0');
+		const month = ('0' + (date.getMonth() + 1)).slice(-2); // Ensure two-digit format
+		const day = ('0' + date.getDate()).slice(-2); // Ensure two-digit format
+		const hour = ('0' + date.getHours()).slice(-2); // Ensure two-digit format
+		const minute = ('0' + date.getMinutes()).slice(-2); // Ensure two-digit format
 
 		return `${year}-${month}-${day}T${hour}:${minute}`;
 	}
