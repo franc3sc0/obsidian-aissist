@@ -17,6 +17,7 @@ This is an Obsidian plugin called "AIssist" that integrates OpenAI's Response AP
 - **main.ts** - Main plugin class with two primary commands:
   - `Prompt` command: Single-shot AI queries without conversation context
   - `Chat` command: Conversational AI that maintains context using OpenAI's Response API threading
+  - `Title` command: Replace note's title with LLM-generated one 
 - **settings.ts** - Plugin settings interface and defaults
 - **manifest.json** - Obsidian plugin metadata
 
