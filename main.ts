@@ -355,24 +355,8 @@ export default class AIssist extends Plugin {
 				const lines = formattedReply.split('\n').length;
 				editor.setCursor({ line: cursorAfterPrompt.line + lines, ch: 0 });
 
-				// Get active note's Frontmatter
-				const noteFile = this.app.workspace.getActiveFile();
-				if (!noteFile) {
-					throw new Error("[AIssist] No active note");
-				}
-
-				const noteFrontmatter = this.app.metadataCache.getFileCache(noteFile)?.frontmatter;
-
-				// Add values to selected Frontmatter properties
-				const addToProperty = (prop: string, value: number) => {
-					const currentValue = noteFrontmatter?.[prop] || 0;
-					this.insertFrontmatterProperty(editor, prop, currentValue + value);
-				};
-
-				// Add token usage values to the existing ones in Frontmatter
-				addToProperty('aissist_openai_response_input_tokens', responseJson.usage.input_tokens);
-				addToProperty('aissist_openai_response_output_tokens', responseJson.usage.output_tokens);
-				addToProperty('aissist_openai_response_total_tokens', responseJson.usage.total_tokens);
+				// Update token tracking
+				await this.updateTokenTracking(editor, responseJson);
 
 				// Update `previousResponseId` in the note's Frontmatter
 				this.insertFrontmatterProperty(editor, 'aissist_openai_previous_response_id', responseJson.id);
