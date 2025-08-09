@@ -1,5 +1,6 @@
 import { Plugin, Editor, Notice, PluginSettingTab, App, Setting } from "obsidian";
 import { AIssistSettings, DEFAULT_SETTINGS } from "./settings";
+import { PROMPTS } from "./prompts";
 
 interface OpenAIResponseRequest {
 	model: string; // ID of the model to use (e.g., "gpt-4o").
@@ -42,6 +43,8 @@ const OPENAI_RESPONSE_API_URL = "https://api.openai.com/v1/responses";
 const MARKER_START = "%% AIssist";
 const MARKER_END = "%%";
 const USER_EMOJI = ":technologist:";
+const INVALID_FILENAME_CHARS = /[\/\\:*?"<>|]/g;
+const FILENAME_REPLACEMENT_CHAR = "-";
 /*
 const COMMENT_BLOCK = "> [!note]+ Comment\n> "; // Obsidian Callouts: https://help.obsidian.md/Editing+and+formatting/Callouts
 const COMMENT_BLOCK_REGEX = /^> \[!note\]\+ Comment\n(> .*?\n)+/gm;
@@ -161,7 +164,7 @@ export default class AIssist extends Plugin {
 			content = content.trim();
 
 			// Remove leading or trailing ">" characters
-			const leadingTrailingPattern = new RegExp(/^>|>$/g);
+			const leadingTrailingPattern = /^>|>$/g;
 			content = content.replace(leadingTrailingPattern, '');
 
 			// Remove any leading/trailing spaces and new-line characters from content
@@ -398,6 +401,128 @@ export default class AIssist extends Plugin {
 		return `${year}-${month}-${day}T${hour}:${minute}`;
 	}
 
+	/* sanitizeFilename
+	*/
+	sanitizeFilename(filename: string): string {
+		console.debug("[AIssist] Function: sanitizeFilename");
+		return filename.replace(INVALID_FILENAME_CHARS, FILENAME_REPLACEMENT_CHAR).trim();
+	}
+
+	/* getBodyContent
+	*/
+	getBodyContent(editor: Editor): string {
+		console.debug("[AIssist] Function: getBodyContent");
+		
+		const content = editor.getValue();
+		
+		// Remove frontmatter if present
+		const frontmatterRegex = /^---\n[\s\S]*?\n---\n?/;
+		const bodyContent = content.replace(frontmatterRegex, '').trim();
+		
+		return bodyContent;
+	}
+
+	/* updateTokenTracking
+	*/
+	async updateTokenTracking(editor: Editor, responseJson: any): Promise<void> {
+		console.debug("[AIssist] Function: updateTokenTracking");
+		
+		try {
+			// Get active note's Frontmatter
+			const noteFile = this.app.workspace.getActiveFile();
+			if (!noteFile) {
+				throw new Error("[AIssist] No active note");
+			}
+
+			const noteFrontmatter = this.app.metadataCache.getFileCache(noteFile)?.frontmatter;
+
+			// Add values to selected Frontmatter properties
+			const addToProperty = (prop: string, value: number) => {
+				const currentValue = noteFrontmatter?.[prop] || 0;
+				this.insertFrontmatterProperty(editor, prop, currentValue + value);
+			};
+
+			// Add token usage values to the existing ones in Frontmatter
+			addToProperty('aissist_openai_response_input_tokens', responseJson.usage.input_tokens);
+			addToProperty('aissist_openai_response_output_tokens', responseJson.usage.output_tokens);
+			addToProperty('aissist_openai_response_total_tokens', responseJson.usage.total_tokens);
+		} catch (error) {
+			console.error("[AIssist] Error updating token tracking:", error);
+		}
+	}
+
+	/* generateTitle
+	*/
+	async generateTitle(editor: Editor): Promise<void> {
+		console.debug("[AIssist] Function: generateTitle");
+		
+		try {
+			// Get note body content
+			const bodyContent = this.getBodyContent(editor);
+			
+			if (!bodyContent || bodyContent.trim().length === 0) {
+				new Notice("[AIssist] Note is empty. Cannot generate title.");
+				return;
+			}
+			
+			// Prepare request parameters
+			const requestParams = this.prepareOpenAIResponseRequest(editor);
+			
+			// Create input with title generation prompt and content
+			const input = `${PROMPTS.TITLE_GENERATION}\n\nContent to create title for:\n${bodyContent}`;
+			
+			// Request title from OpenAI
+			const responseJson = await this.requestOpenAIResponse(requestParams, input, null);
+			
+			// Extract title from response
+			const titleContent = responseJson.output
+				.filter((output: any) => output.type === "message" && output.role === "assistant")
+				.map((output: any) => output.content
+					.filter((content: any) => content.type === "output_text")
+					.map((content: any) => content.text)
+					.join("\n"))
+				.join("\n");
+			
+			if (!titleContent || titleContent.trim().length === 0) {
+				new Notice("[AIssist] Failed to generate title. Empty response from AI.");
+				return;
+			}
+			
+			// Sanitize and validate title
+			const sanitizedTitle = this.sanitizeFilename(titleContent.trim());
+			
+			if (sanitizedTitle.length === 0) {
+				new Notice("[AIssist] Generated title is invalid after sanitization.");
+				return;
+			}
+			
+			// Get current file and rename it
+			const currentFile = this.app.workspace.getActiveFile();
+			if (!currentFile) {
+				new Notice("[AIssist] No active file to rename.");
+				return;
+			}
+			
+			// Construct new path
+			const currentPath = currentFile.path;
+			const pathParts = currentPath.split('/');
+			pathParts[pathParts.length - 1] = sanitizedTitle + '.md';
+			const newPath = pathParts.join('/');
+			
+			// Rename file
+			await this.app.vault.rename(currentFile, newPath);
+			
+			// Update token tracking
+			await this.updateTokenTracking(editor, responseJson);
+			
+			new Notice(`[AIssist] Note renamed to: ${sanitizedTitle}`);
+			
+		} catch (error) {
+			console.error("[AIssist] Error generating title:", error);
+			new Notice("[AIssist] Failed to generate title. Check console for details.");
+		}
+	}
+
 	/* insertFrontmatterProperty
 	*/
 	insertFrontmatterProperty(editor: Editor, property: string, propertyValue: any) {  // may consider limiting propertyValue type to actually supported Properties types
@@ -492,6 +617,17 @@ export default class AIssist extends Plugin {
 
 				// Query OpenAI and insert response
 				await this.insertResponse(editor, cursorPos, requestParams, message[0].content, previousResponseId);
+			}
+		})
+
+		/* Title command
+		*/
+		this.addCommand({
+			id: "title-generation-request",
+			name: "Title",
+			icon: "file-text",
+			editorCallback: async (editor: Editor) => {
+				await this.generateTitle(editor);
 			}
 		})
 

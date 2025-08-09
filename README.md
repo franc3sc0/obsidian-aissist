@@ -31,7 +31,7 @@ Press `Ctrl + p` (or your hotkey of choice) to invoke the Command Palette. The f
 
 For all commands, the **prompt that will be passed to the LLM** is either 
 * the currently highlighted text, or 
-* the text between a double slash ("//", can be changed in Settings) and the cursor position.
+* the text between a triple slash ("///", can be changed in Settings) and the cursor position.
 
 ### "Prompt" command
 Queries the LLM and returns its answer. The LLM **does not consider the contents of the Note as context** and instead threats the query as an independent request, regardless of other ones already stored in the Note. 
