@@ -517,18 +517,27 @@ export default class AIssist extends Plugin {
 			const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
 
 			const editorContent = editor.getValue();
-			const propertyToInsert = `${property}: ${propertyValue}\n`;
+			const propertyToInsert = `${property}: ${propertyValue}`;
 			let newContent;
 
 			if (frontmatterRegex.test(editorContent)) {
 				// Update existing frontmatter
-				newContent = editorContent.replace(frontmatterRegex, (frontmatter) => {
-					// Add property before closing ---
-					return frontmatter.replace(/\n---/, `\n${propertyToInsert}---`);
+				newContent = editorContent.replace(frontmatterRegex, (match, frontmatterContent) => {
+					// Check if the property already exists
+					const propertyRegex = new RegExp(`^${property}:.*$`, 'm');
+					
+					if (propertyRegex.test(frontmatterContent)) {
+						// Update existing property
+						const updatedFrontmatter = frontmatterContent.replace(propertyRegex, propertyToInsert);
+						return `---\n${updatedFrontmatter}\n---`;
+					} else {
+						// Add new property before closing ---
+						return match.replace(/\n---/, `\n${propertyToInsert}\n---`);
+					}
 				});
 			} else {
 				// Insert new Frontmatter at the beginning, if not present
-				newContent = `---\n${propertyToInsert}---\n${editorContent}`;
+				newContent = `---\n${propertyToInsert}\n---\n${editorContent}`;
 			}
 
 			editor.setValue(newContent);
